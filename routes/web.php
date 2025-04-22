@@ -22,5 +22,8 @@ Route::get('/', function () {
 Route::get('/buku-tamu', [GuestController::class, 'create'])->name('create');
 Route::post('/buku-tamu', [GuestController::class, 'store'])->name('guestbook.store');
 
-Route::get('/table', [GuestController::class, 'table'])->name('table');
-Route::get('/export', [GuestController::class, 'export'])->name('export');
+Route::get('/data', [GuestController::class, 'data'])->name('data');
+Route::get('/data-rumahsakit', [GuestController::class, 'extractHospitals'])->name('data.rumahsakit');
+
+
+Route::get('/baca-pdf', [GuestController::class, 'bacaDataPDF'])->name('guest.bacaPDF');
