@@ -1,11 +1,10 @@
 <?php
 
 namespace App\Http\Controllers;
-use Smalot\PdfParser\Parser;
+
 use App\Models\Guest;
+use App\Models\Hospital;
 use Illuminate\Http\Request;
-use App\Exports\GuestsExport;
-use Maatwebsite\Excel\Facades\Excel;
 
 class GuestController extends Controller
 {
@@ -33,105 +32,44 @@ class GuestController extends Controller
         return redirect()->back()->with('success', 'Data Berhasil Dikirim!');
     }
 
-    public function data(Request $request)
+    // Menampilkan halaman data rumah sakit (provinsi)
+    public function index()
     {
-        $hospitalList = $this->extractHospitals();
-
-        // Filtering data berdasarkan input
-        $filtered = collect($hospitalList)->filter(function ($item) use ($request) {
-            return (!$request->hospital_name || $item['hospital_name'] === $request->hospital_name)
-                && (!$request->city || $item['city'] === $request->city)
-                && (!$request->province || $item['province'] === $request->province);
-        });
-
-        // Untuk dropdown filter
-        $hospitalNames = collect($hospitalList)->pluck('hospital_name')->unique()->sort();
-        $cities = collect($hospitalList)->pluck('city')->unique()->sort();
-        $provinces = collect($hospitalList)->pluck('province')->unique()->sort();
-
-        return view('data', [
-            'results' => $filtered->values(),
-            'hospitalNames' => $hospitalNames,
-            'cities' => $cities,
-            'provinces' => $provinces,
-        ]);
+        $provinces = Hospital::select('province')->distinct()->orderBy('province')->get();
+        return view('data', compact('provinces'));
     }
 
-
-
-
-    public function extractHospitals()
+    // Mengambil kota berdasarkan provinsi (AJAX)
+    public function getCities(Request $request)
     {
-        $pdfPath = public_path('data.pdf');
-        $parser = new \Smalot\PdfParser\Parser();
-        $pdf = $parser->parseFile($pdfPath);
-        $text = $pdf->getText();
-
-        // Ambil setiap baris teks dari PDF
-        $lines = explode("\n", $text);
-        $data = [];
-
-        foreach ($lines as $line) {
-            // Gunakan regex untuk mencoba mengambil 3 bagian utama:
-            // Nama RS - Kota - Provinsi
-            // Contoh: RS Harapan Sehat - Bandung - Jawa Barat
-            $parts = array_map('trim', explode('-', $line));
-
-            if (count($parts) >= 3) {
-                $data[] = [
-                    'customer_name' => $parts[0],
-                    'city' => $parts[1],
-                    'province' => $parts[2],
-                ];
-            }
-        }
-
-        return $data;
+        $province = $request->province;
+        $cities = Hospital::where('province', $province)
+            ->select('city')
+            ->distinct()
+            ->orderBy('city')
+            ->get();
+        return response()->json($cities);
     }
 
-
-
-    public function bacaDataPDF(Request $request)
+    // Mengambil rumah sakit berdasarkan kota (AJAX)
+    public function getHospitals(Request $request)
     {
-        $filter = $request->input('filter'); // Optional filter like "Jawa Barat"
-        $parser = new Parser();
-        $pdf = $parser->parseFile(public_path('data.pdf'));
-        $text = $pdf->getText();
-
-        $lines = explode("\n", $text);
-        $data = [];
-
-        foreach ($lines as $line) {
-            if (stripos($line, 'RS') !== false || stripos($line, 'Rumah Sakit') !== false) {
-                // Example format: RS Harapan Sehat - Bandung - Jawa Barat
-                $parts = array_map('trim', explode('-', $line));
-
-                if (count($parts) >= 3) {
-                    if ($filter && stripos($line, $filter) === false) {
-                        continue;
-                    }
-
-                    $data[] = [
-                        'hospital_name' => $parts[0],
-                        'city' => $parts[1],
-                        'province' => $parts[2],
-                    ];
-                }
-            }
-        }
-
-        // Extract unique values for filters
-        $hospitalNames = collect($data)->pluck('hospital_name')->unique()->sort();
-        $cities = collect($data)->pluck('city')->unique()->sort();
-        $provinces = collect($data)->pluck('province')->unique()->sort();
-
-        return view('data', [
-            'results' => collect($data)->values(),
-            'hospitalNames' => $hospitalNames,
-            'cities' => $cities,
-            'provinces' => $provinces,
-        ]);
+        $city = $request->city;
+        $hospitals = Hospital::where('city', $city)
+            ->select('customer_name', 'city', 'province')
+            ->orderBy('customer_name')
+            ->get();
+        return response()->json($hospitals);
     }
 
-
+    // Search rumah sakit berdasarkan nama (AJAX)
+    public function searchHospitals(Request $request)
+    {
+        $query = $request->query('query');
+        $hospitals = Hospital::where('customer_name', 'LIKE', "%{$query}%")
+            ->select('customer_name', 'city', 'province')
+            ->orderBy('customer_name')
+            ->get();
+        return response()->json($hospitals);
+    }
 }
